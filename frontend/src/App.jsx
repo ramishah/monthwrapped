@@ -9,21 +9,33 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  // Helper to get token from localStorage
+  const getToken = () => localStorage.getItem('spotify_token')
+
+  // On mount, check for token in URL or localStorage
+  useEffect(() => {
+    // Check for token in URL
+    const params = new URLSearchParams(window.location.search)
+    const token = params.get('token')
+    if (token) {
+      localStorage.setItem('spotify_token', token)
+      // Remove token from URL
+      window.history.replaceState({}, document.title, window.location.pathname)
+    }
+    checkAuthStatus()
+  }, [])
+
   const connectToSpotify = async () => {
     setLoading(true)
     setError('')
     try {
       const response = await fetch(`${backendUrl}/api/spotify/connect`, {
         method: 'GET',
-        credentials: 'include'
       })
       if (response.ok) {
         const data = await response.json()
         if (data.authUrl) {
           window.location.href = data.authUrl
-        } else if (data.songs) {
-          setTopSongs(data.songs)
-          setIsConnected(true)
         }
       } else {
         setError('Failed to connect to Spotify')
@@ -36,25 +48,38 @@ function App() {
   }
 
   const checkAuthStatus = async () => {
+    const token = getToken()
+    if (!token) {
+      setIsConnected(false)
+      setTopSongs([])
+      return
+    }
     try {
       const response = await fetch(`${backendUrl}/api/spotify/songs`, {
         method: 'GET',
-        credentials: 'include'
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       })
       if (response.ok) {
         const data = await response.json()
         setTopSongs(data.songs)
         setIsConnected(true)
+      } else {
+        setIsConnected(false)
+        setTopSongs([])
       }
     } catch (err) {
-      console.log('Not authenticated yet')
+      setIsConnected(false)
+      setTopSongs([])
     }
   }
 
-  // Check auth status on component mount
-  useEffect(() => {
-    checkAuthStatus()
-  }, [])
+  const handleLogout = () => {
+    localStorage.removeItem('spotify_token')
+    setIsConnected(false)
+    setTopSongs([])
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center p-4">
@@ -67,7 +92,6 @@ function App() {
             Discover your top songs from the past month
           </p>
         </div>
-
         {!isConnected ? (
           <div className="text-center">
             <button
@@ -103,7 +127,6 @@ function App() {
                 Based on your listening history
               </p>
             </div>
-            
             {topSongs.length > 0 ? (
               <div className="space-y-3">
                 {topSongs.map((song, index) => (
@@ -130,12 +153,8 @@ function App() {
                 <p>No songs found. Start listening to music on Spotify!</p>
               </div>
             )}
-            
             <button
-              onClick={() => {
-                setIsConnected(false)
-                setTopSongs([])
-              }}
+              onClick={handleLogout}
               className="mt-6 w-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors duration-200"
             >
               Disconnect

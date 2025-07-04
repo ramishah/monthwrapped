@@ -1,12 +1,13 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-const cookieParser = require('cookie-parser');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 const BACKEND_BASE_URL = process.env.BACKEND_BASE_URL || `http://127.0.0.1:${PORT}`;
+const JWT_SECRET = process.env.JWT_SECRET || 'supersecret';
 
 // Middleware
 app.use(cors({
@@ -18,7 +19,6 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
-app.use(cookieParser());
 
 // Spotify API configuration
 const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
@@ -27,25 +27,6 @@ const REDIRECT_URI = `${BACKEND_BASE_URL}/api/spotify/callback`;
 
 // In-memory storage for tokens (in production, use a database)
 const userTokens = new Map();
-
-// Helper function to get Spotify access token
-async function getSpotifyAccessToken() {
-  try {
-    const response = await axios.post('https://accounts.spotify.com/api/token', 
-      'grant_type=client_credentials',
-      {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': 'Basic ' + Buffer.from(SPOTIFY_CLIENT_ID + ':' + SPOTIFY_CLIENT_SECRET).toString('base64')
-        }
-      }
-    );
-    return response.data.access_token;
-  } catch (error) {
-    console.error('Error getting Spotify access token:', error);
-    throw error;
-  }
-}
 
 // Helper function to get user access token using authorization code
 async function getUserAccessToken(code) {
@@ -110,7 +91,7 @@ app.get('/api/spotify/connect', (req, res) => {
 });
 
 app.get('/api/spotify/callback', async (req, res) => {
-  const { code, state } = req.query;
+  const { code } = req.query;
   
   if (!code) {
     return res.redirect(`${process.env.FRONTEND_URL}?error=no_code`);
@@ -119,23 +100,16 @@ app.get('/api/spotify/callback', async (req, res) => {
   try {
     const tokenData = await getUserAccessToken(code);
     
-    // Store tokens (in production, store in database with user ID)
-    const sessionId = state || Math.random().toString(36).substring(7);
-    userTokens.set(sessionId, {
+    // Generate a short-lived JWT containing the Spotify tokens
+    const payload = {
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token,
       expires_at: Date.now() + (tokenData.expires_in * 1000)
-    });
-
-    // Set a cookie to identify the user session
-    res.cookie('spotify_session', sessionId, {
-      httpOnly: true,
-      secure: false, // Set to true in production with HTTPS
-      sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
-    });
-
-    res.redirect(`${process.env.FRONTEND_URL}`);
+    };
+    const jwtToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '1h' });
+    
+    // Redirect to frontend with token in URL
+    res.redirect(`${process.env.FRONTEND_URL}?token=${jwtToken}`);
   } catch (error) {
     console.error('Error in callback:', error);
     res.redirect(`${process.env.FRONTEND_URL}?error=auth_failed`);
@@ -143,35 +117,37 @@ app.get('/api/spotify/callback', async (req, res) => {
 });
 
 app.get('/api/spotify/songs', async (req, res) => {
-  const sessionId = req.cookies?.spotify_session;
-  
-  if (!sessionId || !userTokens.has(sessionId)) {
-    return res.status(401).json({ error: 'Not authenticated' });
+  // Expect Bearer token in Authorization header
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Missing or invalid token' });
   }
-
-  const userToken = userTokens.get(sessionId);
-  
-  // Check if token is expired and refresh if needed
-  if (Date.now() > userToken.expires_at) {
+  const token = authHeader.split(' ')[1];
+  let payload;
+  try {
+    payload = jwt.verify(token, JWT_SECRET);
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+  let { access_token, refresh_token, expires_at } = payload;
+  // Refresh token if expired
+  if (Date.now() > expires_at) {
     try {
-      const newTokenData = await refreshUserAccessToken(userToken.refresh_token);
-      userToken.access_token = newTokenData.access_token;
-      userToken.expires_at = Date.now() + (newTokenData.expires_in * 1000);
+      const newTokenData = await refreshUserAccessToken(refresh_token);
+      access_token = newTokenData.access_token;
+      expires_at = Date.now() + (newTokenData.expires_in * 1000);
       if (newTokenData.refresh_token) {
-        userToken.refresh_token = newTokenData.refresh_token;
+        refresh_token = newTokenData.refresh_token;
       }
-      userTokens.set(sessionId, userToken);
     } catch (error) {
-      userTokens.delete(sessionId);
       return res.status(401).json({ error: 'Token refresh failed' });
     }
   }
-
   try {
     // Get user's top tracks from the last month
     const response = await axios.get('https://api.spotify.com/v1/me/top/tracks', {
       headers: {
-        'Authorization': `Bearer ${userToken.access_token}`
+        'Authorization': `Bearer ${access_token}`
       },
       params: {
         limit: 5,
