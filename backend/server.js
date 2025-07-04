@@ -113,7 +113,7 @@ app.get('/api/spotify/callback', async (req, res) => {
   const { code, state } = req.query;
   
   if (!code) {
-    return res.redirect(`${BACKEND_BASE_URL.replace(/:[0-9]+$/, ':5173')}?error=no_code`);
+    return res.redirect(`${process.env.FRONTEND_URL}?error=no_code`);
   }
 
   try {
@@ -135,10 +135,10 @@ app.get('/api/spotify/callback', async (req, res) => {
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
     });
 
-    res.redirect(`${BACKEND_BASE_URL.replace(/:[0-9]+$/, ':5173')}`);
+    res.redirect(`${process.env.FRONTEND_URL}`);
   } catch (error) {
     console.error('Error in callback:', error);
-    res.redirect(`${BACKEND_BASE_URL.replace(/:[0-9]+$/, ':5173')}?error=auth_failed`);
+    res.redirect(`${process.env.FRONTEND_URL}?error=auth_failed`);
   }
 });
 
