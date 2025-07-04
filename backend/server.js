@@ -117,55 +117,58 @@ app.get('/api/spotify/callback', async (req, res) => {
 });
 
 app.get('/api/spotify/songs', async (req, res) => {
-  // Expect Bearer token in Authorization header
-  const authHeader = req.headers['authorization'];
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Missing or invalid token' });
-  }
-  const token = authHeader.split(' ')[1];
-  let payload;
   try {
-    payload = jwt.verify(token, JWT_SECRET);
-  } catch (err) {
-    return res.status(401).json({ error: 'Invalid or expired token' });
-  }
-  let { access_token, refresh_token, expires_at } = payload;
-  // Refresh token if expired
-  if (Date.now() > expires_at) {
-    try {
-      const newTokenData = await refreshUserAccessToken(refresh_token);
-      access_token = newTokenData.access_token;
-      expires_at = Date.now() + (newTokenData.expires_in * 1000);
-      if (newTokenData.refresh_token) {
-        refresh_token = newTokenData.refresh_token;
-      }
-    } catch (error) {
-      return res.status(401).json({ error: 'Token refresh failed' });
+    const authHeader = req.headers['authorization'];
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.error('Missing or invalid Authorization header');
+      return res.status(401).json({ error: 'Missing or invalid token' });
     }
-  }
-  try {
-    // Get user's top tracks from the last month
-    const response = await axios.get('https://api.spotify.com/v1/me/top/tracks', {
-      headers: {
-        'Authorization': `Bearer ${access_token}`
-      },
-      params: {
-        limit: 5,
-        time_range: 'short_term' // Last 4 weeks
+    const token = authHeader.split(' ')[1];
+    let payload;
+    try {
+      payload = jwt.verify(token, JWT_SECRET);
+    } catch (err) {
+      console.error('JWT verification failed:', err);
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+    let { access_token, refresh_token, expires_at } = payload;
+    if (Date.now() > expires_at) {
+      try {
+        const newTokenData = await refreshUserAccessToken(refresh_token);
+        access_token = newTokenData.access_token;
+        expires_at = Date.now() + (newTokenData.expires_in * 1000);
+        if (newTokenData.refresh_token) {
+          refresh_token = newTokenData.refresh_token;
+        }
+      } catch (error) {
+        console.error('Token refresh failed:', error.response?.data || error.message);
+        return res.status(401).json({ error: 'Token refresh failed', details: error.response?.data || error.message });
       }
-    });
-
-    const songs = response.data.items.map((track, index) => ({
-      name: track.name,
-      artist: track.artists.map(artist => artist.name).join(', '),
-      albumArt: track.album.images[0]?.url || null,
-      spotifyUrl: track.external_urls.spotify
-    }));
-
-    res.json({ songs });
+    }
+    try {
+      const response = await axios.get('https://api.spotify.com/v1/me/top/tracks', {
+        headers: {
+          'Authorization': `Bearer ${access_token}`
+        },
+        params: {
+          limit: 5,
+          time_range: 'short_term'
+        }
+      });
+      const songs = response.data.items.map((track) => ({
+        name: track.name,
+        artist: track.artists.map(artist => artist.name).join(', '),
+        albumArt: track.album.images[0]?.url || null,
+        spotifyUrl: track.external_urls.spotify
+      }));
+      res.json({ songs });
+    } catch (error) {
+      console.error('Error fetching top songs:', error.response?.data || error.message);
+      res.status(500).json({ error: 'Failed to fetch top songs', details: error.response?.data || error.message });
+    }
   } catch (error) {
-    console.error('Error fetching top songs:', error);
-    res.status(500).json({ error: 'Failed to fetch top songs' });
+    console.error('Unexpected error in /api/spotify/songs:', error);
+    res.status(500).json({ error: 'Unexpected error', details: error.message });
   }
 });
 

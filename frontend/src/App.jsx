@@ -118,7 +118,7 @@ function App() {
             )}
           </div>
         ) : (
-          <div>
+      <div>
             <div className="text-center mb-6">
               <h2 className="text-xl font-semibold text-gray-800 mb-2">
                 Your Top Songs This Month
@@ -151,14 +151,14 @@ function App() {
             ) : (
               <div className="text-center text-gray-500">
                 <p>No songs found. Start listening to music on Spotify!</p>
-              </div>
+      </div>
             )}
             <button
               onClick={handleLogout}
               className="mt-6 w-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors duration-200"
             >
               Disconnect
-            </button>
+        </button>
           </div>
         )}
       </div>
