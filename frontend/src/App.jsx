@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 
+const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://monthwrapped.onrender.com';
+
 function App() {
   const [isConnected, setIsConnected] = useState(false)
   const [topSongs, setTopSongs] = useState([])
@@ -10,17 +12,14 @@ function App() {
   const connectToSpotify = async () => {
     setLoading(true)
     setError('')
-    
     try {
-      const response = await fetch('http://127.0.0.1:3001/api/spotify/connect', {
+      const response = await fetch(`${backendUrl}/api/spotify/connect`, {
         method: 'GET',
         credentials: 'include'
       })
-      
       if (response.ok) {
         const data = await response.json()
         if (data.authUrl) {
-          // Redirect to Spotify authorization
           window.location.href = data.authUrl
         } else if (data.songs) {
           setTopSongs(data.songs)
@@ -38,11 +37,10 @@ function App() {
 
   const checkAuthStatus = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:3001/api/spotify/songs', {
+      const response = await fetch(`${backendUrl}/api/spotify/songs`, {
         method: 'GET',
         credentials: 'include'
       })
-      
       if (response.ok) {
         const data = await response.json()
         setTopSongs(data.songs)

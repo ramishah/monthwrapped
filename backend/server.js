@@ -6,10 +6,15 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const BACKEND_BASE_URL = process.env.BACKEND_BASE_URL || `http://127.0.0.1:${PORT}`;
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'], // Vite dev server
+  origin: [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    process.env.FRONTEND_URL // allow production frontend
+  ].filter(Boolean),
   credentials: true
 }));
 app.use(express.json());
@@ -18,7 +23,7 @@ app.use(cookieParser());
 // Spotify API configuration
 const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
-const REDIRECT_URI = 'http://127.0.0.1:3001/api/spotify/callback';
+const REDIRECT_URI = `${BACKEND_BASE_URL}/api/spotify/callback`;
 
 // In-memory storage for tokens (in production, use a database)
 const userTokens = new Map();
@@ -108,7 +113,7 @@ app.get('/api/spotify/callback', async (req, res) => {
   const { code, state } = req.query;
   
   if (!code) {
-    return res.redirect('http://127.0.0.1:5173?error=no_code');
+    return res.redirect(`${BACKEND_BASE_URL.replace(/:[0-9]+$/, ':5173')}?error=no_code`);
   }
 
   try {
@@ -130,10 +135,10 @@ app.get('/api/spotify/callback', async (req, res) => {
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
     });
 
-    res.redirect('http://127.0.0.1:5173');
+    res.redirect(`${BACKEND_BASE_URL.replace(/:[0-9]+$/, ':5173')}`);
   } catch (error) {
     console.error('Error in callback:', error);
-    res.redirect('http://127.0.0.1:5173?error=auth_failed');
+    res.redirect(`${BACKEND_BASE_URL.replace(/:[0-9]+$/, ':5173')}?error=auth_failed`);
   }
 });
 
@@ -200,6 +205,7 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`Frontend should be running on http://127.0.0.1:5173`);
+  console.log(`Backend base URL: ${BACKEND_BASE_URL}`);
+  console.log(`Frontend should be running on ${BACKEND_BASE_URL.replace(/:[0-9]+$/, ':5173')}`);
   console.log(`Make sure to set up your Spotify API credentials in .env file`);
 }); 
