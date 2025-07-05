@@ -117,8 +117,10 @@ app.get('/api/spotify/callback', async (req, res) => {
 });
 
 app.get('/api/spotify/songs', async (req, res) => {
+  console.log('Received request to /api/spotify/songs');
+  const authHeader = req.headers['authorization'];
+  console.log('Authorization header:', authHeader ? '[present]' : '[missing]');
   try {
-    const authHeader = req.headers['authorization'];
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       console.error('Missing or invalid Authorization header');
       return res.status(401).json({ error: 'Missing or invalid token' });
@@ -161,6 +163,7 @@ app.get('/api/spotify/songs', async (req, res) => {
         albumArt: track.album.images[0]?.url || null,
         spotifyUrl: track.external_urls.spotify
       }));
+      console.log('Successfully returned top songs for a user');
       res.json({ songs });
     } catch (error) {
       console.error('Error fetching top songs:', error.response?.data || error.message);
