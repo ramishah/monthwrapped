@@ -14,7 +14,8 @@ app.use(cors({
   origin: [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
-    process.env.FRONTEND_URL // allow production frontend
+    process.env.FRONTEND_URL,
+    process.env.LOCAL_FRONTEND_URL || 'http://localhost:5173'
   ].filter(Boolean),
   credentials: true
 }));
@@ -94,7 +95,8 @@ app.get('/api/spotify/callback', async (req, res) => {
   const { code } = req.query;
   
   if (!code) {
-    return res.redirect(`${process.env.FRONTEND_URL}?error=no_code`);
+    const redirectUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    return res.redirect(`${redirectUrl}?error=no_code`);
   }
 
   try {
@@ -109,10 +111,12 @@ app.get('/api/spotify/callback', async (req, res) => {
     const jwtToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '1h' });
     
     // Redirect to frontend with token in URL
-    res.redirect(`${process.env.FRONTEND_URL}?token=${jwtToken}`);
+    const redirectUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    res.redirect(`${redirectUrl}?token=${jwtToken}`);
   } catch (error) {
     console.error('Error in callback:', error);
-    res.redirect(`${process.env.FRONTEND_URL}?error=auth_failed`);
+    const redirectUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    res.redirect(`${redirectUrl}?error=auth_failed`);
   }
 });
 

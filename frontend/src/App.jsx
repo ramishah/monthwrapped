@@ -1,7 +1,16 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 
-const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://monthwrapped.onrender.com';
+// Determine backend URL for local and production
+const getBackendUrl = () => {
+  if (import.meta.env.VITE_BACKEND_URL) return import.meta.env.VITE_BACKEND_URL;
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return 'http://127.0.0.1:3001';
+  }
+  return 'https://monthwrapped.onrender.com';
+};
+
+const backendUrl = getBackendUrl();
 
 function App() {
   const [isConnected, setIsConnected] = useState(false)
@@ -65,13 +74,25 @@ function App() {
         const data = await response.json()
         setTopSongs(data.songs)
         setIsConnected(true)
+        setError('')
       } else {
+        // Try to parse error message
+        let errorMsg = 'Session expired or invalid. Please reconnect to Spotify.'
+        try {
+          const errData = await response.json()
+          if (errData && errData.error) errorMsg = errData.error
+          if (errData && errData.details) errorMsg += `: ${errData.details}`
+        } catch {}
+        setError(errorMsg)
         setIsConnected(false)
         setTopSongs([])
+        localStorage.removeItem('spotify_token')
       }
     } catch (err) {
       setIsConnected(false)
       setTopSongs([])
+      setError('Network error. Please try again.')
+      localStorage.removeItem('spotify_token')
     }
   }
 
@@ -79,6 +100,7 @@ function App() {
     localStorage.removeItem('spotify_token')
     setIsConnected(false)
     setTopSongs([])
+    setError('')
   }
 
   return (
@@ -92,6 +114,11 @@ function App() {
             Discover your top songs from the past month
           </p>
         </div>
+        {error && (
+          <div className="mb-4 text-center text-red-600 font-semibold">
+            {error}
+          </div>
+        )}
         {!isConnected ? (
           <div className="text-center">
             <button
@@ -113,9 +140,6 @@ function App() {
                 </div>
               )}
             </button>
-            {error && (
-              <p className="text-red-500 mt-4 text-sm">{error}</p>
-            )}
           </div>
         ) : (
       <div>
