@@ -72,6 +72,9 @@ function App() {
       })
       if (response.ok) {
         const data = await response.json()
+        if (data.newToken) {
+          localStorage.setItem('spotify_token', data.newToken)
+        }
         setTopSongs(data.songs)
         setIsConnected(true)
         setError('')

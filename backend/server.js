@@ -26,9 +26,6 @@ const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 const REDIRECT_URI = `${BACKEND_BASE_URL}/api/spotify/callback`;
 
-// In-memory storage for tokens (in production, use a database)
-const userTokens = new Map();
-
 // Helper function to get user access token using authorization code
 async function getUserAccessToken(code) {
   try {
@@ -146,6 +143,10 @@ app.get('/api/spotify/songs', async (req, res) => {
         if (newTokenData.refresh_token) {
           refresh_token = newTokenData.refresh_token;
         }
+        // Generate a new JWT with updated tokens
+        const newPayload = { access_token, refresh_token, expires_at };
+        const newJwtToken = jwt.sign(newPayload, JWT_SECRET, { expiresIn: '1h' });
+        res.set('x-new-jwt', newJwtToken); // Optionally set as header
       } catch (error) {
         console.error('Token refresh failed:', error.response?.data || error.message);
         return res.status(401).json({ error: 'Token refresh failed', details: error.response?.data || error.message });
@@ -168,7 +169,7 @@ app.get('/api/spotify/songs', async (req, res) => {
         spotifyUrl: track.external_urls.spotify
       }));
       console.log('Successfully returned top songs for a user');
-      res.json({ songs });
+      res.json({ songs, newToken: typeof newJwtToken !== 'undefined' ? newJwtToken : undefined });
     } catch (error) {
       console.error('Error fetching top songs:', error.response?.data || error.message);
       res.status(500).json({ error: 'Failed to fetch top songs', details: error.response?.data || error.message });
