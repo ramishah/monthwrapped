@@ -2,6 +2,8 @@
 
 A React application that connects to Spotify API to display your top 5 songs from the past month.
 
+> **Note**: Due to Spotify's recent API quota changes (May 2025), this app may have limited functionality. See [quota documentation](https://developer.spotify.com/documentation/web-api/concepts/quota-modes) for details.
+
 ## Demo
 
 ![Month Wrapped Demo](demo.gif)
