@@ -1,3 +1,6 @@
+# Ignore code workspace
+.code-workspace
+
 # Dependencies
 node_modules/
 */node_modules/
